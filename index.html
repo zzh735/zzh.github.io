@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windows命令知识图谱</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#080810;--panel:#0f1028;--border:#2a2a4a;--text:#d8dae0;--green:#00ff41;--blue:#4fc3f7;--yellow:#ffd740;--red:#e57373;--cyan:#4dd0e1;--purple:#ba68c8;--orange:#ffb74d;--green2:#81c784;--console-bg:#06060e}
+body{background:var(--bg);color:var(--text);font-family:'Consolas','Courier New',monospace;overflow:hidden;height:100vh;width:100vw}
+#app{display:grid;grid-template-rows:auto 1fr auto;height:100vh}
+/* Header */
+.header{background:var(--panel);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:16px;z-index:100}
+.header h1{font-size:16px;color:var(--green);white-space:nowrap}
+.header h1 span{color:var(--yellow);font-weight:400;font-size:12px}
+.search-box{position:relative;flex:0 0 280px}
+.search-box input{width:100%;background:#111;border:1px solid var(--border);color:var(--text);padding:6px 10px 6px 30px;border-radius:4px;font-family:inherit;font-size:13px;outline:none}
+.search-box input:focus{border-color:var(--green)}
+.search-box::before{content:'🔍';position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:13px}
+.search-results{position:absolute;top:100%;left:0;right:100%;background:#1a1a2e;border:1px solid var(--border);border-radius:0 0 4px 4px;max-height:240px;overflow-y:auto;display:none;z-index:200}
+.search-results.show{display:block}
+.search-results div{padding:6px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #222}
+.search-results div:hover,.search-results div.active{background:#2a2a4e;color:var(--green)}
+/* Filters */
+.filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:1}
+.filters label{font-size:11px;color:#888}
+.filter-btn{background:#222;border:1px solid var(--border);color:var(--text);padding:3px 10px;border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;transition:all .2s}
+.filter-btn.active{border-color:var(--blue);color:var(--blue);background:#1a2a3e}
+.filter-btn:hover{border-color:var(--blue)}
+/* Legend */
+.legend{display:flex;gap:12px;align-items:center;font-size:11px}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.legend-line{width:20px;height:2px}
+/* Main area */
+.main{display:flex;position:relative;overflow:hidden}
+#graph{flex:1;height:100%}
+/* Detail panel */
+.detail-panel{width:0;background:linear-gradient(180deg,#0f1028 0%,#0a0a1e 100%);border-left:1px solid var(--border);overflow-y:auto;transition:width .35s cubic-bezier(.4,0,.2,1);font-size:13px;scrollbar-width:thin;scrollbar-color:#333 transparent}
+.detail-panel::-webkit-scrollbar{width:6px}
+.detail-panel::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+.detail-panel.open{width:440px}
+.detail-panel .close-btn{position:absolute;top:8px;right:8px;background:none;border:none;color:#888;cursor:pointer;font-size:18px;z-index:10}
+.detail-header{padding:20px;border-bottom:1px solid var(--border);position:relative;background:linear-gradient(135deg,rgba(0,255,65,0.05) 0%,rgba(79,195,247,0.05) 100%)}
+.detail-header h2{color:var(--green);font-size:22px;margin-bottom:6px;text-shadow:0 0 20px rgba(0,255,65,0.3);letter-spacing:1px}
+.detail-header .desc{color:#b0b4c0;font-size:13px;line-height:1.5}
+.detail-header .cat-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;margin-top:8px;border:1px solid}
+.detail-section{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04)}
+.detail-section h3{color:var(--blue);font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-weight:600}
+.detail-section h3::before{content:'';display:inline-block;width:3px;height:16px;background:linear-gradient(180deg,var(--blue),var(--cyan));border-radius:2px}
+.detail-section .syntax{background:rgba(0,0,0,0.4);padding:10px 12px;border-radius:6px;color:var(--green);font-size:12px;word-break:break-all;border:1px solid rgba(0,255,65,0.15);line-height:1.6;font-family:Consolas,monospace;position:relative}
+.detail-section .syntax::before{content:'SYNTAX';position:absolute;top:4px;right:8px;font-size:9px;color:rgba(0,255,65,0.3);letter-spacing:1px}
+.detail-section .params{list-style:none}
+.detail-section .params li{padding:6px 0;font-size:12px;color:#c0c4d0;border-bottom:1px solid rgba(255,255,255,0.03);line-height:1.5}
+.detail-section .params li:last-child{border:none}
+.detail-section .params li strong{color:var(--yellow);background:rgba(255,215,64,0.1);padding:1px 6px;border-radius:3px;font-size:11px}
+.detail-section .example{background:rgba(0,0,0,0.4);padding:10px 12px;border-radius:6px;font-size:12px;color:var(--cyan);border:1px solid rgba(77,208,225,0.15);margin-top:4px;line-height:1.6;position:relative}
+.detail-section .example::before{content:'EXAMPLE';position:absolute;top:4px;right:8px;font-size:9px;color:rgba(77,208,225,0.3);letter-spacing:1px}
+.detail-section .ps-cmd{color:var(--purple);font-weight:bold;font-size:13px;background:rgba(186,104,200,0.08);padding:8px 12px;border-radius:6px;border:1px solid rgba(186,104,200,0.15)}
+.detail-section .tool-link{color:var(--orange);font-size:12px;background:rgba(255,183,77,0.08);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,183,77,0.15)}
+.detail-section .related-cmds{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.detail-section .related-cmds .tag{background:rgba(0,255,65,0.08);border:1px solid rgba(0,255,65,0.2);color:var(--green);padding:3px 10px;border-radius:12px;font-size:11px;cursor:pointer;transition:all .2s}
+.detail-section .related-cmds .tag:hover{background:rgba(0,255,65,0.2);border-color:var(--green);box-shadow:0 0 8px rgba(0,255,65,0.2)}
+.detail-section .tips{background:rgba(255,215,64,0.05);border:1px solid rgba(255,215,64,0.12);border-radius:6px;padding:10px 12px;font-size:12px;color:#c0c4d0;line-height:1.6}
+.detail-section .tips strong{color:var(--yellow)}
+/* Console */
+.console{background:var(--console-bg);border-top:2px solid var(--border);height:180px;display:flex;flex-direction:column}
+.console-header{background:#1a1a2e;padding:4px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.console-header span{color:var(--green);font-size:12px}
+.console-header button{background:none;border:1px solid var(--border);color:#888;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:11px;font-family:inherit}
+.console-header button:hover{color:var(--text);border-color:var(--green)}
+.console-output{flex:1;overflow-y:auto;padding:8px 12px;font-size:12px;line-height:1.6}
+.console-output .cmd-line{color:var(--green)}
+.console-output .result-line{color:var(--text)}
+.console-output .error-line{color:var(--red)}
+.console-output .info-line{color:var(--blue)}
+.console-output .ps-line{color:var(--purple)}
+.console-input-area{display:flex;align-items:center;padding:4px 12px 8px;border-top:1px solid #1a1a1a}
+.console-prompt{color:var(--green);margin-right:8px;font-size:12px;white-space:nowrap}
+.console-input{flex:1;background:transparent;border:none;color:var(--text);font-family:inherit;font-size:12px;outline:none;caret-color:var(--green)}
+/* Responsive */
+@media(max-width:900px){
+  .detail-panel.open{width:300px}
+  .filters{display:none}
+}
+
+/* Background animation */
+.bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+#app{position:relative;z-index:1}
+/* Node pulse animation */
+@keyframes pulse{0%,100%{opacity:0.6}50%{opacity:1}}
+/* Improved header */
+.header{background:linear-gradient(90deg,rgba(15,16,40,0.98) 0%,rgba(10,10,30,0.98) 100%);backdrop-filter:blur(10px)}
+.header h1{text-shadow:0 0 30px rgba(0,255,65,0.3)}
+/* Smooth detail panel transitions */
+.detail-section{transition:background .2s}
+.detail-section:hover{background:rgba(255,255,255,0.02)}
+/* Console glow */
+.console-input:focus{box-shadow:inset 0 0 20px rgba(0,255,65,0.05)}
+.console-output .cmd-line{text-shadow:0 0 10px rgba(0,255,65,0.3)}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <div class="header">
+    <h1>C:\> Windows命令知识图谱 <span>v1.0</span></h1>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="输入命令名称搜索..." autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <div class="filters">
+      <label>分类筛选:</label>
+      <button class="filter-btn active" data-cat="all">全部</button>
+      <button class="filter-btn" data-cat="cat_file">📁 文件/目录</button>
+      <button class="filter-btn" data-cat="cat_network">🌐 网络管理</button>
+      <button class="filter-btn" data-cat="cat_system">⚙️ 系统管理</button>
+      <button class="filter-btn" data-cat="cat_info">📊 信息查询</button>
+      <button class="filter-btn" data-cat="cat_utility">🔧 实用工具</button>
+      <button class="filter-btn" data-cat="cat_console">🖥️ 控制台</button>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#00ff41"></div>CMD命令</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ba68c8"></div>PS命令</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4fc3f7"></div>分类</div>
+      <div class="legend-item"><div class="legend-line" style="background:#ffd740"></div>关联</div>
+    </div>
+  </div>
+  <!-- Main -->
+  <div class="main">
+    <div id="graph"></div>
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <button class="close-btn" id="closeDetail">✕</button>
+        <h2 id="detailName">-</h2>
+        <div class="desc" id="detailDesc">-</div>
+        <div class="cat-badge" id="detailCatBadge">-</div>
+      </div>
+      <div class="detail-section">
+        <h3>📋 命令语法</h3>
+        <div class="syntax" id="detailSyntax">-</div>
+      </div>
+      <div class="detail-section">
+        <h3>⚙️ 参数说明</h3>
+        <ul class="params" id="detailParams"></ul>
+      </div>
+      <div class="detail-section">
+        <h3>💡 使用示例</h3>
+        <div class="example" id="detailExample">-</div>
+      </div>
+      <div class="detail-section">
+        <h3>🔄 PowerShell 对应</h3>
+        <div class="ps-cmd" id="detailPS">-</div>
+      </div>
+      <div class="detail-section">
+        <h3>🛠️ 关联工具</h3>
+        <div class="tool-link" id="detailTool">-</div>
+      </div>
+      <div class="detail-section">
+        <h3>📌 同类命令</h3>
+        <div class="related-cmds" id="detailRelated"></div>
+      </div>
+      <div class="detail-section">
+        <h3>⚠️ 使用提示</h3>
+        <div class="tips" id="detailTips">-</div>
+      </div>
+    </div>
+  </div>
+  <!-- Console -->
+  <div class="console">
+    <div class="console-header">
+      <span>📟 命令模拟终端 — 输入 help 查看可用命令</span>
+      <button id="clearConsole">清屏</button>
+    </div>
+    <div class="console-output" id="consoleOutput">
+      <div class="info-line">Windows 命令知识图谱终端 v1.0</div>
+      <div class="info-line">输入命令名称查看帮助, 如: help dir | 输入 cls 清屏</div>
+      <div class="info-line">─────────────────────────────────────────────</div>
+    </div>
+    <div class="console-input-area">
+      <span class="console-prompt">C:\&gt;</span>
+      <input type="text" class="console-input" id="consoleInput" placeholder="输入命令..." autocomplete="off">
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== Data Management Layer ==========
+let commandsData = null;
+let allNodes = [];
+let allLinks = [];
+let nodeMap = {};
+let categoryMap = {};
+let currentFilter = 'all';
+let chart = null;
+
+// Fetch data
+async function loadData() {
+  try {
+    const resp = await fetch('data/commands.json');
+    commandsData = await resp.json();
+  } catch(e) {
+    // Inline fallback
+    commandsData = getFallbackData();
+  }
+  buildGraphData();
+  initChart();
+  bindEvents();
+  initConsole();
+}
+
+function getFallbackData() {
+  return {
+  "categories": [
+    {
+      "id": "cat_file",
+      "name": "文件/目录操作类",
+      "color": "#4FC3F7",
+      "commands": [
+        {
+          "name": "dir",
+          "description": "显示目录中的文件和子目录列表",
+          "syntax": "dir [drive:][path][filename] [/A:attrs] [/B] [/C] [/D] [/L] [/N] [/O:sortorder] [/P] [/Q] [/R] [/S] [/T:timefield] [/W]",
+          "params": [
+            "/P - 分页显示",
+            "/W - 宽列表格式",
+            "/S - 显示指定目录及所有子目录中的文件",
+            "/A:attrs - 显示具有指定属性的文件",
+            "/O:sortorder - 排序输出",
+            "/B - 使用空格式(无标题/摘要)"
+          ],
+          "example": "dir C:\\Windows\\System32 /s *.dll",
+          "powershell": "Get-ChildItem",
+          "tool": null
+        },
+        {
+          "name": "cd",
+          "description": "显示当前目录名或切换到指定目录",
+          "syntax": "cd [/D] [drive:][path]",
+          "params": [
+            "/D - 同时更改驱动器",
+            ".. - 返回上级目录",
+            "\\ - 返回根目录"
+          ],
+          "example": "cd /D D:\\Projects",
+          "powershell": "Set-Location",
+          "tool": null
+        },
+        {
+          "name": "copy",
+          "description": "将一个或多个文件复制到另一个位置",
+          "syntax": "copy [/A|/B] source [/A|/B] [+source...] [destination] [/V] [/Y|/-Y]",
+          "params": [
+            "/V - 验证新文件是否正确写入",
+            "/Y - 禁止覆盖确认提示",
+            "/-Y - 启用覆盖确认提示",
+            "/A - ASCII文本文件",
+            "/B - 二进制文件"
+          ],
+          "example": "copy C:\\file.txt D:\\backup\\",
+          "powershell": "Copy-Item",
+          "tool": null
+        },
+        {
+          "name": "del",
+          "description": "删除一个或多个文件",
+          "syntax": "del [/P] [/F] [/S] [/Q] [/A[:]attributes] names",
+          "params": [
+            "/P - 删除前确认",
+            "/F - 强制删除只读文件",
+            "/S - 从所有子目录中删除指定文件",
+            "/Q - 安静模式,不提示确认"
+          ],
+          "example": "del /s /q C:\\temp\\*.tmp",
+          "powershell": "Remove-Item",
+          "tool": null
+        },
+        {
+          "name": "mkdir",
+          "description": "创建目录或子目录",
+          "syntax": "mkdir [drive:]path",
+          "params": [
+            "自动创建中间目录"
+          ],
+          "example": "mkdir C:\\Projects\\MyApp",
+          "powershell": "New-Item -ItemType Directory",
+          "tool": null
+        },
+        {
+          "name": "move",
+          "description": "将文件从一个目录移动到另一个目录并重命名",
+          "syntax": "move [/Y|/-Y] source destination",
+          "params": [
+            "/Y - 禁止覆盖确认",
+            "/-Y - 启用覆盖确认"
+          ],
+          "example": "move C:\\old.txt D:\\new\\",
+          "powershell": "Move-Item",
+          "tool": null
+        },
+        {
+          "name": "ren",
+          "description": "重命名文件或目录",
+          "syntax": "ren [drive:][path]filename1 filename2",
+          "params": [
+            "不能跨驱动器重命名"
+          ],
+          "example": "ren report.txt report_2024.txt",
+          "powershell": "Rename-Item",
+          "tool": null
+        },
+        {
+          "name": "rmdir",
+          "description": "删除目录(文件夹)",
+          "syntax": "rmdir [/S] [/Q] [drive:]path",
+          "params": [
+            "/S - 删除目录树(含文件)",
+            "/Q - 安静模式"
+          ],
+          "example": "rmdir /s /q C:\\temp\\old",
+          "powershell": "Remove-Item -Recurse",
+          "tool": null
+        },
+        {
+          "name": "xcopy",
+          "description": "复制文件和目录树",
+          "syntax": "xcopy source [destination] [/S] [/E] [/Y] [/I] [/D:date] [/V] [/C] [/Q] [/F] [/H] [/R] [/T] [/K] [/N] [/O] [/X] [/Z] [/B]",
+          "params": [
+            "/S - 复制目录和子目录(非空)",
+            "/E - 复制所有子目录(含空目录)",
+            "/Y - 禁止覆盖确认",
+            "/I - 目标不存在则假定为目录"
+          ],
+          "example": "xcopy C:\\src D:\\dest /s /e /y",
+          "powershell": "Copy-Item -Recurse",
+          "tool": null
+        },
+        {
+          "name": "tree",
+          "description": "以图形方式显示目录结构",
+          "syntax": "tree [drive:][path] [/F] [/A]",
+          "params": [
+            "/F - 显示每个目录中的文件名",
+            "/A - 使用ASCII字符而非扩展字符"
+          ],
+          "example": "tree C:\\Projects /F",
+          "powershell": "Get-ChildItem -Recurse",
+          "tool": null
+        },
+        {
+          "name": "type",
+          "description": "显示文本文件内容",
+          "syntax": "type [drive:][path]filename",
+          "params": [
+            "适用于文本文件"
+          ],
+          "example": "type C:\\Windows\\System32\\drivers\\etc\\hosts",
+          "powershell": "Get-Content",
+          "tool": null
+        },
+        {
+          "name": "more",
+          "description": "逐屏显示输出",
+          "syntax": "more [/C] [/P] [/S] [/Tn] [+n] file",
+          "params": [
+            "/C - 清除屏幕前显示",
+            "/P - 扩展换页符",
+            "/S - 将多个空行压缩为单行"
+          ],
+          "example": "dir /s | more",
+          "powershell": "Out-Host -Paging",
+          "tool": null
+        }
+      ]
+    },
+    {
+      "id": "cat_network",
+      "name": "网络管理类",
+      "color": "#81C784",
+      "commands": [
+        {
+          "name": "ipconfig",
+          "description": "显示所有当前TCP/IP网络配置值并刷新DHCP和DNS设置",
+          "syntax": "ipconfig [/all] [/release] [/renew] [/flushdns] [/displaydns] [/registerdns]",
+          "params": [
+            "/all - 显示完整配置信息",
+            "/release - 释放IPv4地址",
+            "/renew - 更新IPv4地址",
+            "/flushdns - 清除DNS缓存",
+            "/displaydns - 显示DNS缓存"
+          ],
+          "example": "ipconfig /all",
+          "powershell": "Get-NetIPConfiguration",
+          "tool": null
+        },
+        {
+          "name": "ping",
+          "description": "测试与另一台TCP/IP计算机的网络连接",
+          "syntax": "ping [/t] [/a] [/n count] [/l size] [/f] [/i TTL] [/w timeout] target",
+          "params": [
+            "/t - 持续ping直到中断",
+            "/n count - 发送指定数量数据包",
+            "/l size - 发送缓冲区大小",
+            "/w timeout - 超时(毫秒)"
+          ],
+          "example": "ping www.baidu.com -n 10",
+          "powershell": "Test-Connection",
+          "tool": null
+        },
+        {
+          "name": "netstat",
+          "description": "显示活动的TCP连接、端口监听等网络统计信息",
+          "syntax": "netstat [-a] [-b] [-e] [-f] [-n] [-o] [-p proto] [-r] [-s] [interval]",
+          "params": [
+            "-a - 显示所有连接和监听端口",
+            "-b - 显示可执行文件",
+            "-n - 数字形式显示",
+            "-o - 显示进程ID",
+            "-r - 显示路由表"
+          ],
+          "example": "netstat -ano",
+          "powershell": "Get-NetTCPConnection",
+          "tool": null
+        },
+        {
+          "name": "tracert",
+          "description": "跟踪数据包到目标主机的路由路径",
+          "syntax": "tracert [/d] [/h max_hops] [/w timeout] target",
+          "params": [
+            "/d - 不解析主机名",
+            "-h max_hops - 最大跃点数",
+            "/w timeout - 超时"
+          ],
+          "example": "tracert www.baidu.com",
+          "powershell": "Test-NetConnection -TraceRoute",
+          "tool": null
+        },
+        {
+          "name": "nslookup",
+          "description": "查询DNS域名系统以获取域名或IP地址映射",
+          "syntax": "nslookup [-option] [hostname] [server]",
+          "params": [
+            "set type=A - 查询A记录",
+            "set type=MX - 查询邮件交换记录",
+            "set type=CNAME - 查询别名记录"
+          ],
+          "example": "nslookup www.baidu.com",
+          "powershell": "Resolve-DnsName",
+          "tool": null
+        },
+        {
+          "name": "net",
+          "description": "管理网络资源和服务的通用命令",
+          "syntax": "net [accounts|config|file|group|localgroup|share|start|stop|use|user|view]",
+          "params": [
+            "net user - 管理用户账户",
+            "net use - 管理网络连接",
+            "net start - 启动服务",
+            "net stop - 停止服务",
+            "net share - 管理共享"
+          ],
+          "example": "net user administrator",
+          "powershell": "多种对应命令",
+          "tool": null
+        },
+        {
+          "name": "ftp",
+          "description": "文件传输协议客户端",
+          "syntax": "ftp [-v] [-n] [-i] [-d] [-g] [-s:filename] [host]",
+          "params": [
+            "-n - 禁止自动登录",
+            "-i - 关闭交互提示",
+            "-s:filename - 指定FTP命令文件"
+          ],
+          "example": "ftp ftp.example.com",
+          "powershell": "Invoke-WebRequest",
+          "tool": null
+        },
+        {
+          "name": "arp",
+          "description": "显示和修改地址解析协议缓存",
+          "syntax": "arp -a [-N if_addr] [-v]",
+          "params": [
+            "-a - 显示当前ARP表",
+            "-d - 删除ARP条目",
+            "-s - 添加静态ARP条目"
+          ],
+          "example": "arp -a",
+          "powershell": "Get-NetNeighbor",
+          "tool": null
+        }
+      ]
+    },
+    {
+      "id": "cat_system",
+      "name": "系统管理类",
+      "color": "#FFB74D",
+      "commands": [
+        {
+          "name": "taskkill",
+          "description": "按进程ID或映像名称终止进程",
+          "syntax": "taskkill [/FI filter] [/PID processid | /IM imagename] [/T] [/F]",
+          "params": [
+            "/F - 强制终止进程",
+            "/PID - 指定进程ID",
+            "/IM - 指定映像名称",
+            "/T - 终止子进程"
+          ],
+          "example": "taskkill /f /im notepad.exe",
+          "powershell": "Stop-Process",
+          "tool": "任务管理器"
+        },
+        {
+          "name": "tasklist",
+          "description": "显示本地或远程计算机上运行的进程列表",
+          "syntax": "tasklist [/M module|/SVC|/V] [/FI filter] [/FO format] [/NH]",
+          "params": [
+            "/FO format - 输出格式(TABLE/LIST/CSV)",
+            "/FI filter - 按条件过滤",
+            "/V - 显示详细信息",
+            "/M - 显示加载的模块"
+          ],
+          "example": "tasklist /fo table",
+          "powershell": "Get-Process",
+          "tool": "任务管理器"
+        },
+        {
+          "name": "sfc",
+          "description": "系统文件检查器,扫描并修复受保护的系统文件",
+          "syntax": "sfc [/scannow] [/verifyonly] [/scanfile=file] [/verifyfile=file]",
+          "params": [
+            "/scannow - 扫描并修复",
+            "/verifyonly - 仅扫描不修复",
+            "/scanfile - 扫描指定文件"
+          ],
+          "example": "sfc /scannow",
+          "powershell": "Repair-WindowsImage",
+          "tool": null
+        },
+        {
+          "name": "chkdsk",
+          "description": "检查磁盘并显示状态报告,可修复磁盘错误",
+          "syntax": "chkdsk [volume] [/F] [/V] [/R] [/X] [/I] [/C] [/L[:size]] [/B]",
+          "params": [
+            "/F - 修复磁盘错误",
+            "/R - 定位坏扇区并恢复",
+            "/X - 强制卸载卷",
+            "/V - 显示详细文件名"
+          ],
+          "example": "chkdsk C: /F /R",
+          "powershell": "Repair-Volume",
+          "tool": "磁盘检查工具"
+        },
+        {
+          "name": "net user",
+          "description": "添加或修改用户账户,或显示用户账户信息",
+          "syntax": "net user [username [password|*] [options]] [/domain]",
+          "params": [
+            "username - 指定用户名",
+            "password - 设置密码",
+            "/add - 添加用户",
+            "/delete - 删除用户",
+            "/active:yes|no - 启用/禁用"
+          ],
+          "example": "net user John P@ssw0rd /add",
+          "powershell": "New-LocalUser",
+          "tool": "计算机管理"
+        },
+        {
+          "name": "sc",
+          "description": "与服务控制管理器和服务通信",
+          "syntax": "sc [query|start|stop|config|create|delete] [service_name]",
+          "params": [
+            "query - 查询服务状态",
+            "start - 启动服务",
+            "stop - 停止服务",
+            "config - 修改服务配置"
+          ],
+          "example": "sc query wuauserv",
+          "powershell": "Get-Service",
+          "tool": "服务管理器"
+        },
+        {
+          "name": "shutdown",
+          "description": "关闭或重启本地或远程计算机",
+          "syntax": "shutdown [/i|/l|/s|/r|/g|/a] [/f] [/m \\\\computer] [/t xxx] [/c comment]",
+          "params": [
+            "/s - 关闭计算机",
+            "/r - 重启计算机",
+            "/l - 注销",
+            "/a - 中止关机",
+            "/t xxx - 超时(秒)"
+          ],
+          "example": "shutdown /r /t 60",
+          "powershell": "Restart-Computer",
+          "tool": null
+        },
+        {
+          "name": "reg",
+          "description": "注册表控制台工具,管理Windows注册表",
+          "syntax": "reg [query|add|delete|copy|save|export|import]",
+          "params": [
+            "query - 查询注册表",
+            "add - 添加条目",
+            "delete - 删除条目",
+            "export - 导出",
+            "import - 导入"
+          ],
+          "example": "reg query HKLM\\SOFTWARE",
+          "powershell": "Get-ItemProperty",
+          "tool": "注册表编辑器(regedit)"
+        },
+        {
+          "name": "gpupdate",
+          "description": "刷新本地和基于Active Directory的组策略设置",
+          "syntax": "gpupdate [/target:computer|user] [/force] [/wait:n] [/logoff] [/boot]",
+          "params": [
+            "/force - 强制刷新",
+            "/target - 仅刷新计算机或用户",
+            "/logoff - 刷新后注销"
+          ],
+          "example": "gpupdate /force",
+          "powershell": "Invoke-GPUpdate",
+          "tool": "组策略编辑器(gpedit.msc)"
+        }
+      ]
+    },
+    {
+      "id": "cat_info",
+      "name": "系统信息查询类",
+      "color": "#BA68C8",
+      "commands": [
+        {
+          "name": "systeminfo",
+          "description": "显示计算机及其操作系统的详细配置信息",
+          "syntax": "systeminfo [/S system] [/U username] [/P password] [/FO format] [/NH]",
+          "params": [
+            "/S system - 远程系统",
+            "/U username - 用户上下文",
+            "/FO format - 输出格式",
+            "/NH - 省略标题行"
+          ],
+          "example": "systeminfo",
+          "powershell": "Get-ComputerInfo",
+          "tool": null
+        },
+        {
+          "name": "winver",
+          "description": "显示Windows版本信息",
+          "syntax": "winver",
+          "params": [
+            "无参数,弹出版本信息对话框"
+          ],
+          "example": "winver",
+          "powershell": "[System.Environment]::OSVersion.Version",
+          "tool": null
+        },
+        {
+          "name": "msinfo32",
+          "description": "打开系统信息工具,显示硬件、组件和软件环境的全面信息",
+          "syntax": "msinfo32 [/report filename] [/computer computername]",
+          "params": [
+            "/report - 保存到文件",
+            "/computer - 连接远程计算机"
+          ],
+          "example": "msinfo32",
+          "powershell": "Get-ComputerInfo",
+          "tool": "系统信息工具"
+        },
+        {
+          "name": "hostname",
+          "description": "显示计算机的网络名称",
+          "syntax": "hostname",
+          "params": [
+            "无参数"
+          ],
+          "example": "hostname",
+          "powershell": "$env:COMPUTERNAME",
+          "tool": null
+        },
+        {
+          "name": "whoami",
+          "description": "显示当前登录的用户、组和特权信息",
+          "syntax": "whoami [/upn | /fqdn | /logonid]",
+          "params": [
+            "/all - 显示所有信息",
+            "/user - 当前用户",
+            "/groups - 当前组",
+            "/priv - 当前特权"
+          ],
+          "example": "whoami /all",
+          "powershell": "[WindowsIdentity]::GetCurrent()",
+          "tool": null
+        },
+        {
+          "name": "ver",
+          "description": "显示Windows版本号",
+          "syntax": "ver",
+          "params": [
+            "无参数"
+          ],
+          "example": "ver",
+          "powershell": "$PSVersionTable",
+          "tool": null
+        },
+        {
+          "name": "driverquery",
+          "description": "显示已安装设备驱动程序及其属性的列表",
+          "syntax": "driverquery [/S system] [/fo format] [/nh] [/v] [/si]",
+          "params": [
+            "/v - 显示详细信息",
+            "/fo format - 输出格式",
+            "/si - 数字签名信息"
+          ],
+          "example": "driverquery /v",
+          "powershell": "Get-WmiObject Win32_PnPSignedDriver",
+          "tool": "设备管理器"
+        },
+        {
+          "name": "getmac",
+          "description": "显示网络适配器的MAC地址",
+          "syntax": "getmac [/S computer] [/fo format] [/nh] [/v]",
+          "params": [
+            "/fo format - 输出格式",
+            "/v - 显示详细信息"
+          ],
+          "example": "getmac /v",
+          "powershell": "Get-NetAdapter",
+          "tool": null
+        }
+      ]
+    },
+    {
+      "id": "cat_utility",
+      "name": "实用工具类",
+      "color": "#E57373",
+      "commands": [
+        {
+          "name": "findstr",
+          "description": "在文件中搜索字符串模式",
+          "syntax": "findstr [/B] [/E] [/L] [/R] [/S] [/I] [/X] [/V] [/N] [/M] [/C:string] [strings] [filename]",
+          "params": [
+            "/I - 忽略大小写",
+            "/S - 搜索子目录",
+            "/R - 正则表达式",
+            "/N - 显示行号",
+            "/C:string - 指定字符串"
+          ],
+          "example": "findstr /s /i error C:\\logs\\*.log",
+          "powershell": "Select-String",
+          "tool": null
+        },
+        {
+          "name": "attrib",
+          "description": "显示或更改文件属性",
+          "syntax": "attrib [+R|-R] [+A|-A] [+S|-S] [+H|-H] [+I|-I] [path] [/S [/D] [/L]]",
+          "params": [
+            "+R/-R - 设置/清除只读",
+            "+H/-H - 设置/清除隐藏",
+            "+S/-S - 设置/清除系统",
+            "+A/-A - 设置/清除存档"
+          ],
+          "example": "attrib +h +s C:\\secret.txt",
+          "powershell": "Set-ItemProperty -Attributes",
+          "tool": "文件属性对话框"
+        },
+        {
+          "name": "robocopy",
+          "description": "强大的文件复制工具(可靠复制)",
+          "syntax": "robocopy source destination [file] [/S] [/E] [/Z] [/MIR] [/MT:n] [/R:n] [/W:n] [/LOG:file]",
+          "params": [
+            "/S - 复制子目录(非空)",
+            "/E - 复制子目录(含空)",
+            "/MIR - 镜像目录树",
+            "/MT:n - 多线程",
+            "/Z - 可重启模式"
+          ],
+          "example": "robocopy C:\\src D:\\dest /MIR /MT:8",
+          "powershell": "Copy-Item",
+          "tool": null
+        },
+        {
+          "name": "fc",
+          "description": "比较两个文件并显示差异",
+          "syntax": "fc [/A] [/C] [/L] [/LBn] [/N] [/T] [/U] [/W] file1 file2",
+          "params": [
+            "/A - 仅显示不同行首尾",
+            "/C - 忽略大小写",
+            "/L - ASCII逐行比较",
+            "/N - 显示行号"
+          ],
+          "example": "fc old.txt new.txt",
+          "powershell": "Compare-Object",
+          "tool": null
+        },
+        {
+          "name": "assoc",
+          "description": "显示或修改文件扩展名关联",
+          "syntax": "assoc [.ext[=[fileType]]]",
+          "params": [
+            "无参数 - 显示所有关联",
+            ".ext= - 设置关联"
+          ],
+          "example": "assoc .txt",
+          "powershell": "Get-ItemProperty HKLM:\\",
+          "tool": "默认程序设置"
+        },
+        {
+          "name": "clip",
+          "description": "将命令输出重定向到Windows剪贴板",
+          "syntax": "clip",
+          "params": [
+            "从stdin读取并放入剪贴板"
+          ],
+          "example": "dir | clip",
+          "powershell": "Set-Clipboard",
+          "tool": null
+        },
+        {
+          "name": "cipher",
+          "description": "显示或更改NTFS分区上的文件加密(EFS)",
+          "syntax": "cipher [/E|/D|/C] [/S:directory] [/B] [/H] [pathname]",
+          "params": [
+            "/E - 加密目录",
+            "/D - 解密目录",
+            "/C - 显示加密信息"
+          ],
+          "example": "cipher /E C:\\SecureFolder",
+          "powershell": "cipher.exe",
+          "tool": null
+        },
+        {
+          "name": "compact",
+          "description": "显示或更改NTFS分区上的文件压缩",
+          "syntax": "compact [/C|/U] [/S:dir] [/A] [/I] [/F] [/Q] [filename]",
+          "params": [
+            "/C - 压缩文件",
+            "/U - 解压文件",
+            "/S - 对目录执行操作"
+          ],
+          "example": "compact /C /S:C:\\Data",
+          "powershell": "compact.exe",
+          "tool": null
+        }
+      ]
+    },
+    {
+      "id": "cat_console",
+      "name": "控制台配置类",
+      "color": "#4DD0E1",
+      "commands": [
+        {
+          "name": "cls",
+          "description": "清除命令提示符窗口的屏幕",
+          "syntax": "cls",
+          "params": [
+            "无参数"
+          ],
+          "example": "cls",
+          "powershell": "Clear-Host",
+          "tool": null
+        },
+        {
+          "name": "color",
+          "description": "设置控制台的前景色和背景色",
+          "syntax": "color [attr]",
+          "params": [
+            "attr - 两位十六进制数(背景+前景)",
+            "0=黑 1=蓝 2=绿 3=蓝绿 4=红 5=紫 6=黄 7=白 8=灰 9=亮蓝 A=亮绿 B=亮蓝绿 C=亮红 D=亮紫 E=亮黄 F=亮白"
+          ],
+          "example": "color 0A",
+          "powershell": "$Host.UI.RawUI.ForegroundColor",
+          "tool": null
+        },
+        {
+          "name": "title",
+          "description": "设置命令提示符窗口的标题",
+          "syntax": "title [string]",
+          "params": [
+            "string - 窗口标题文本"
+          ],
+          "example": "title My Admin Console",
+          "powershell": "$Host.UI.RawUI.WindowTitle",
+          "tool": null
+        },
+        {
+          "name": "set",
+          "description": "显示、设置或删除环境变量",
+          "syntax": "set [[/p] variable=[string]]",
+          "params": [
+            "无参数 - 显示所有环境变量",
+            "variable=string - 设置变量",
+            "/p - 提示用户输入"
+          ],
+          "example": "set PATH",
+          "powershell": "$env:VariableName",
+          "tool": "系统环境变量设置"
+        },
+        {
+          "name": "prompt",
+          "description": "更改CMD命令提示符",
+          "syntax": "prompt [text]",
+          "params": [
+            "$P - 当前路径",
+            "$_ - 换行",
+            "$$ - $符号",
+            "$D - 当前日期",
+            "$T - 当前时间",
+            "$G - 大于号"
+          ],
+          "example": "prompt $P$G",
+          "powershell": "function prompt {}",
+          "tool": null
+        },
+        {
+          "name": "mode",
+          "description": "配置系统设备和控制台窗口",
+          "syntax": "mode [comX] [/status]",
+          "params": [
+            "mode con cols=120 lines=40 - 设置尺寸",
+            "mode con codepage - 设置代码页"
+          ],
+          "example": "mode con cols=120 lines=40",
+          "powershell": "$Host.UI.RawUI.BufferSize",
+          "tool": null
+        },
+        {
+          "name": "chcp",
+          "description": "显示或设置活动代码页编号",
+          "syntax": "chcp [codepage]",
+          "params": [
+            "无参数 - 显示当前代码页",
+            "936 - 简体中文GBK",
+            "65001 - UTF-8",
+            "437 - 美国英语"
+          ],
+          "example": "chcp 65001",
+          "powershell": "[Console]::OutputEncoding",
+          "tool": null
+        },
+        {
+          "name": "doskey",
+          "description": "调用命令行命令、创建宏",
+          "syntax": "doskey [/reinstall] [/listsize] [/macros] [/history] [macroname=[text]]",
+          "params": [
+            "/history - 显示命令历史",
+            "/macros - 显示宏",
+            "macroname=command - 创建宏"
+          ],
+          "example": "doskey /history",
+          "powershell": "PSReadLine模块",
+          "tool": null
+        },
+        {
+          "name": "help",
+          "description": "提供Windows命令的帮助信息",
+          "syntax": "help [command]",
+          "params": [
+            "无参数 - 列出所有命令",
+            "command - 显示指定命令帮助"
+          ],
+          "example": "help dir",
+          "powershell": "Get-Help",
+          "tool": null
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "source": "del",
+      "target": "Remove-Item",
+      "type": "cmd_ps",
+      "description": "CMD删除文件对应PowerShell命令"
+    },
+    {
+      "source": "copy",
+      "target": "Copy-Item",
+      "type": "cmd_ps",
+      "description": "CMD复制文件对应PowerShell命令"
+    },
+    {
+      "source": "dir",
+      "target": "Get-ChildItem",
+      "type": "cmd_ps",
+      "description": "CMD列目录对应PowerShell命令"
+    },
+    {
+      "source": "cd",
+      "target": "Set-Location",
+      "type": "cmd_ps",
+      "description": "CMD切换目录对应PowerShell命令"
+    },
+    {
+      "source": "mkdir",
+      "target": "New-Item -ItemType Directory",
+      "type": "cmd_ps",
+      "description": "CMD创建目录对应PowerShell命令"
+    },
+    {
+      "source": "move",
+      "target": "Move-Item",
+      "type": "cmd_ps",
+      "description": "CMD移动文件对应PowerShell命令"
+    },
+    {
+      "source": "ren",
+      "target": "Rename-Item",
+      "type": "cmd_ps",
+      "description": "CMD重命名对应PowerShell命令"
+    },
+    {
+      "source": "type",
+      "target": "Get-Content",
+      "type": "cmd_ps",
+      "description": "CMD显示文件内容对应PowerShell命令"
+    },
+    {
+      "source": "cls",
+      "target": "Clear-Host",
+      "type": "cmd_ps",
+      "description": "CMD清屏对应PowerShell命令"
+    },
+    {
+      "source": "taskkill",
+      "target": "Stop-Process",
+      "type": "cmd_ps",
+      "description": "CMD终止进程对应PowerShell命令"
+    },
+    {
+      "source": "tasklist",
+      "target": "Get-Process",
+      "type": "cmd_ps",
+      "description": "CMD查看进程对应PowerShell命令"
+    },
+    {
+      "source": "ipconfig",
+      "target": "Get-NetIPConfiguration",
+      "type": "cmd_ps",
+      "description": "CMD查看IP配置对应PowerShell命令"
+    },
+    {
+      "source": "ping",
+      "target": "Test-Connection",
+      "type": "cmd_ps",
+      "description": "CMD测试连接对应PowerShell命令"
+    },
+    {
+      "source": "netstat",
+      "target": "Get-NetTCPConnection",
+      "type": "cmd_ps",
+      "description": "CMD查看网络连接对应PowerShell命令"
+    },
+    {
+      "source": "findstr",
+      "target": "Select-String",
+      "type": "cmd_ps",
+      "description": "CMD搜索字符串对应PowerShell命令"
+    },
+    {
+      "source": "shutdown",
+      "target": "Restart-Computer",
+      "type": "cmd_ps",
+      "description": "CMD关机/重启对应PowerShell命令"
+    },
+    {
+      "source": "sc",
+      "target": "Get-Service",
+      "type": "cmd_ps",
+      "description": "CMD服务管理对应PowerShell命令"
+    },
+    {
+      "source": "systeminfo",
+      "target": "Get-ComputerInfo",
+      "type": "cmd_ps",
+      "description": "CMD系统信息对应PowerShell命令"
+    },
+    {
+      "source": "ipconfig /release",
+      "target": "ipconfig /renew",
+      "type": "combo",
+      "description": "先释放后更新IP地址组合操作"
+    },
+    {
+      "source": "sfc /scannow",
+      "target": "chkdsk C: /F",
+      "type": "combo",
+      "description": "系统文件修复+磁盘检查组合维护"
+    },
+    {
+      "source": "tasklist",
+      "target": "taskkill",
+      "type": "combo",
+      "description": "先查看进程再终止进程"
+    },
+    {
+      "source": "ping",
+      "target": "tracert",
+      "type": "combo",
+      "description": "先测试连通性再追踪路由路径"
+    },
+    {
+      "source": "netstat",
+      "target": "arp",
+      "type": "combo",
+      "description": "查看网络连接+查看ARP缓存排查网络问题"
+    },
+    {
+      "source": "taskkill",
+      "target": "taskmgr",
+      "type": "tool",
+      "description": "CMD终止进程 ↔ 任务管理器"
+    },
+    {
+      "source": "reg",
+      "target": "regedit",
+      "type": "tool",
+      "description": "CMD注册表操作 ↔ 注册表编辑器"
+    },
+    {
+      "source": "gpupdate",
+      "target": "gpedit.msc",
+      "type": "tool",
+      "description": "CMD刷新策略 ↔ 组策略编辑器"
+    },
+    {
+      "source": "net user",
+      "target": "lusrmgr.msc",
+      "type": "tool",
+      "description": "CMD用户管理 ↔ 本地用户和组管理"
+    },
+    {
+      "source": "sc",
+      "target": "services.msc",
+      "type": "tool",
+      "description": "CMD服务管理 ↔ 服务管理器"
+    },
+    {
+      "source": "chkdsk",
+      "target": "磁盘检查工具",
+      "type": "tool",
+      "description": "CMD磁盘检查 ↔ 磁盘属性工具"
+    },
+    {
+      "source": "attrib",
+      "target": "文件属性对话框",
+      "type": "tool",
+      "description": "CMD文件属性 ↔ 文件属性对话框"
+    },
+    {
+      "source": "assoc",
+      "target": "默认程序设置",
+      "type": "tool",
+      "description": "CMD文件关联 ↔ 默认程序设置"
+    }
+  ]
+};
+}
+
+// Build graph nodes and links
+function buildGraphData() {
+  allNodes = [];
+  allLinks = [];
+  nodeMap = {};
+  categoryMap = {};
+
+  // Root nodes
+  const roots = [
+    { id:'root_cmd', name:'CMD命令', symbolSize:50, category:0, itemStyle:{color:'#00ff41',borderColor:'#00ff41',shadowColor:'#00ff41',shadowBlur:20}, label:{color:'#00ff41',fontSize:14,fontWeight:'bold'} },
+    { id:'root_ps', name:'PowerShell命令', symbolSize:50, category:1, itemStyle:{color:'#ba68c8',borderColor:'#ba68c8',shadowColor:'#ba68c8',shadowBlur:20}, label:{color:'#ba68c8',fontSize:14,fontWeight:'bold'} },
+    { id:'root_cat', name:'命令分类', symbolSize:50, category:2, itemStyle:{color:'#4fc3f7',borderColor:'#4fc3f7',shadowColor:'#4fc3f7',shadowBlur:20}, label:{color:'#4fc3f7',fontSize:14,fontWeight:'bold'} },
+    { id:'root_rel', name:'命令关联', symbolSize:50, category:3, itemStyle:{color:'#ffd740',borderColor:'#ffd740',shadowColor:'#ffd740',shadowBlur:20}, label:{color:'#ffd740',fontSize:14,fontWeight:'bold'} }
+  ];
+  roots.forEach(r => { allNodes.push(r); nodeMap[r.id] = r; });
+
+  // Cross links between roots (subtle)
+  allLinks.push({source:'root_cmd',target:'root_cat',lineStyle:{color:'#333',type:'dashed',width:1}});
+  allLinks.push({source:'root_ps',target:'root_cat',lineStyle:{color:'#333',type:'dashed',width:1}});
+  allLinks.push({source:'root_cmd',target:'root_rel',lineStyle:{color:'#333',type:'dashed',width:1}});
+  allLinks.push({source:'root_rel',target:'root_cat',lineStyle:{color:'#333',type:'dashed',width:1}});
+
+  // Category nodes
+  commandsData.categories.forEach(cat => {
+    const catNode = {
+      id: cat.id,
+      name: cat.name,
+      symbolSize: 36,
+      category: 2,
+      _type: 'category',
+      _catId: cat.id,
+      itemStyle: { color: cat.color, borderColor: cat.color, shadowColor: cat.color, shadowBlur: 10 },
+      label: { color: cat.color, fontSize: 12, fontWeight: 'bold' }
+    };
+    allNodes.push(catNode);
+    nodeMap[cat.id] = catNode;
+    categoryMap[cat.id] = cat;
+    allLinks.push({source:'root_cat',target:cat.id,lineStyle:{color:'#4fc3f7',width:2,opacity:0.6}});
+
+    // Command nodes
+    cat.commands.forEach(cmd => {
+      const cmdId = 'cmd_' + cmd.name.replace(/[^a-zA-Z0-9]/g,'_');
+      // Enrich cmd data with category info
+      cmd._catName = cat.name;
+      cmd._catColor = cat.color;
+      
+      const cmdNode = {
+        id: cmdId,
+        name: cmd.name,
+        symbolSize: 24,
+        category: 0,
+        _type: 'command',
+        _catId: cat.id,
+        _data: cmd,
+        itemStyle: { color: '#00ff41', borderColor: '#00c431', shadowColor: '#00ff41', shadowBlur: 5 },
+        label: { color: '#b0ffb0', fontSize: 10 }
+      };
+      allNodes.push(cmdNode);
+      nodeMap[cmdId] = cmdNode;
+      allLinks.push({source:cat.id,target:cmdId,lineStyle:{color:cat.color,width:1.5,opacity:0.5}});
+
+      // Link to CMD root
+      allLinks.push({source:'root_cmd',target:cmdId,lineStyle:{color:'#1a4a2a',width:0.5,opacity:0.2}});
+
+      // PowerShell counterpart
+      if(cmd.powershell) {
+        const psId = 'ps_' + cmd.powershell.replace(/[^a-zA-Z0-9]/g,'_');
+        if(!nodeMap[psId]) {
+          const psNode = {
+            id: psId,
+            name: cmd.powershell,
+            symbolSize: 20,
+            category: 1,
+            _type: 'powershell',
+            itemStyle: { color: '#ba68c8', borderColor: '#9c54b6', shadowColor: '#ba68c8', shadowBlur: 3 },
+            label: { color: '#d4a0e0', fontSize: 9 }
+          };
+          allNodes.push(psNode);
+          nodeMap[psId] = psNode;
+          allLinks.push({source:'root_ps',target:psId,lineStyle:{color:'#4a2a5a',width:0.5,opacity:0.2}});
+        }
+        allLinks.push({source:cmdId,target:psId,lineStyle:{color:'#ffd740',width:1.5,type:'dashed',opacity:0.7},label:{show:false}});
+      }
+    });
+  });
+
+  // Relationship nodes
+  const relTypeColors = {cmd_ps:'#ffd740',combo:'#4dd0e1',tool:'#e57373'};
+  const relTypeNames = {cmd_ps:'CMD↔PS',combo:'命令组合',tool:'图形工具'};
+  
+  commandsData.relationships.forEach((rel, i) => {
+    const relId = 'rel_' + i;
+    const color = relTypeColors[rel.type] || '#ffd740';
+    const relNode = {
+      id: relId,
+      name: rel.description,
+      symbolSize: 12,
+      category: 3,
+      _type: 'relationship',
+      _data: rel,
+      itemStyle: { color: color, borderColor: color, opacity: 0.8 },
+      label: { show: false, color: color, fontSize: 8 }
+    };
+    allNodes.push(relNode);
+    nodeMap[relId] = relNode;
+    allLinks.push({source:'root_rel',target:relId,lineStyle:{color:'#555',width:0.3,opacity:0.3}});
+  });
+}
+
+// ========== Graph Rendering Layer ==========
+function initChart() {
+  chart = echarts.init(document.getElementById('graph'), null, {renderer:'canvas'});
+  
+  const categories = [
+    { name:'CMD命令', itemStyle:{color:'#00ff41'} },
+    { name:'PowerShell命令', itemStyle:{color:'#ba68c8'} },
+    { name:'命令分类', itemStyle:{color:'#4fc3f7'} },
+    { name:'命令关联', itemStyle:{color:'#ffd740'} }
+  ];
+
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(15,16,40,0.95)',
+      borderColor: '#2a2a4a',
+      borderWidth: 1,
+      padding: [10, 14],
+      textStyle: { color: '#d8dae0', fontFamily: 'Consolas, monospace', fontSize: 12 },
+      extraCssText: 'box-shadow:0 4px 20px rgba(0,0,0,0.5);border-radius:8px;',
+      formatter: function(params) {
+        if(params.data._type === 'command') {
+          const d = params.data._data;
+          return '<div style="margin-bottom:4px"><b style="color:#00ff41;font-size:14px">' + params.data.name + '</b>' +
+                 '<span style="color:#555;margin-left:8px;font-size:10px">CMD</span></div>' +
+                 '<div style="color:#a0a4b0;margin-bottom:6px;line-height:1.4">' + d.description + '</div>' +
+                 '<div style="color:#666;font-size:10px;border-top:1px solid #222;padding-top:6px">单击查看详情 · 所属: ' + (d._catName||'') + '</div>';
+        }
+        if(params.data._type === 'powershell') {
+          return '<b style="color:#ba68c8;font-size:14px">' + params.data.name + '</b><br/><span style="color:#888">PowerShell 命令 · 单击查看详情</span>';
+        }
+        if(params.data._type === 'relationship') {
+          const d = params.data._data;
+          const typeLabel = d.type==='cmd_ps'?'CMD↔PS':d.type==='combo'?'命令组合':'图形工具';
+          const typeColor = d.type==='cmd_ps'?'#ffd740':d.type==='combo'?'#4dd0e1':'#e57373';
+          return '<div style="margin-bottom:4px"><span style="color:'+typeColor+';font-size:10px">['+typeLabel+']</span></div>' +
+                 '<div style="color:#a0a4b0">' + d.description + '</div>';
+        }
+        return '<b>' + params.data.name + '</b>';
+      }
+    },
+    animationDuration: 1200,
+    animationEasingUpdate: 'quinticInOut',
+    series: [{
+      type: 'graph',
+      layout: 'force',
+      data: allNodes,
+      links: allLinks,
+      categories: categories,
+      roam: true,
+      draggable: true,
+      force: {
+        repulsion: 400,
+        gravity: 0.08,
+        edgeLength: [100, 300],
+        friction: 0.6,
+        layoutAnimation: true
+      },
+      scaleLimit: { min: 0.4, max: 2.5 },
+      label: { show: true, position: 'right', fontSize: 10, color: '#a0a4b0' },
+      lineStyle: { curveness: 0.15, opacity: 0.4 },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: { width: 3, opacity: 1 },
+        itemStyle: { shadowBlur: 25, shadowColor: 'rgba(0,255,65,0.4)' },
+        label: { fontSize: 13, fontWeight: 'bold' }
+      },
+      blur: {
+        itemStyle: { opacity: 0.08 },
+        lineStyle: { opacity: 0.03 }
+      }
+    }]
+  };
+
+  chart.setOption(option);
+  
+  // Throttle zoom sensitivity - intercept wheel on chart canvas
+  const chartDom = document.getElementById('graph');
+  chartDom.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    // Get current zoom
+    const opt = chart.getOption();
+    // Let ECharts handle it but at reduced speed by only processing every 2nd wheel event
+    if(!this._wheelTick) this._wheelTick = 0;
+    this._wheelTick++;
+    if(this._wheelTick % 2 !== 0) {
+      e.stopImmediatePropagation();
+    }
+  }, { passive: false, capture: true });
+  
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ========== Interaction Control Layer ==========
+
+// Filter
+function setFilter(catId) {
+  currentFilter = catId;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.cat === catId);
+  });
+  
+  // Update visibility
+  const updatedNodes = allNodes.map(n => {
+    let opacity = 1;
+    if(catId !== 'all') {
+      if(n._catId && n._catId !== catId) opacity = 0.05;
+      if(n.id === 'root_cmd' || n.id === 'root_ps' || n.id === 'root_cat' || n.id === 'root_rel') opacity = 0.3;
+      if(n._type === 'powershell') {
+        // Check if any connected cmd belongs to filtered category
+        opacity = 0.05;
+      }
+      if(n._type === 'relationship') opacity = 0.05;
+    }
+    return {
+      ...n,
+      itemStyle: { ...n.itemStyle, opacity },
+      label: { ...n.label, opacity }
+    };
+  });
+
+  chart.setOption({ series: [{ data: updatedNodes }] });
+}
+
+// Search
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+
+searchInput.addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+  if(!q) { searchResults.classList.remove('show'); return; }
+  
+  const matches = allNodes.filter(n => 
+    n.name.toLowerCase().includes(q) || 
+    (n._data && n._data.description && n._data.description.toLowerCase().includes(q))
+  ).slice(0, 12);
+  
+  if(matches.length === 0) { searchResults.classList.remove('show'); return; }
+  
+  searchResults.innerHTML = matches.map(n => {
+    const type = n._type === 'command' ? '[CMD]' : n._type === 'powershell' ? '[PS]' : n._type === 'category' ? '[分类]' : '';
+    return '<div data-id="' + n.id + '">' + type + ' ' + n.name + '</div>';
+  }).join('');
+  searchResults.classList.add('show');
+  
+  searchResults.querySelectorAll('div').forEach(d => {
+    d.addEventListener('click', () => {
+      focusNode(d.dataset.id);
+      searchResults.classList.remove('show');
+      searchInput.value = '';
+    });
+  });
+});
+
+searchInput.addEventListener('keydown', function(e) {
+  if(e.key === 'Enter') {
+    const first = searchResults.querySelector('div');
+    if(first) { focusNode(first.dataset.id); searchResults.classList.remove('show'); searchInput.value = ''; }
+  }
+});
+
+document.addEventListener('click', function(e) {
+  if(!e.target.closest('.search-box')) searchResults.classList.remove('show');
+});
+
+function focusNode(nodeId) {
+  const node = allNodes.find(n => n.id === nodeId);
+  if(!node || !chart) return;
+  
+  // Highlight
+  chart.dispatchAction({ type: 'highlight', dataIndex: allNodes.indexOf(node) });
+  chart.dispatchAction({ type: 'showTip', dataIndex: allNodes.indexOf(node) });
+  
+  // Show detail
+  if(node._data) showDetail(node);
+  
+  // Animate to node
+  setTimeout(() => chart.dispatchAction({ type: 'hideTip' }), 2000);
+}
+
+// Detail panel
+const detailPanel = document.getElementById('detailPanel');
+const detailName = document.getElementById('detailName');
+const detailDesc = document.getElementById('detailDesc');
+const detailSyntax = document.getElementById('detailSyntax');
+const detailParams = document.getElementById('detailParams');
+const detailExample = document.getElementById('detailExample');
+const detailPS = document.getElementById('detailPS');
+const detailTool = document.getElementById('detailTool');
+
+function showDetail(node) {
+  if(!node._data) return;
+  const d = node._data;
+  // If this is a PS node, try to find the corresponding CMD command
+  if(node._type === 'powershell' && !d.syntax) {
+    const psName = node.name;
+    for(const cat of commandsData.categories) {
+      for(const cmd of cat.commands) {
+        if(cmd.powershell === psName) {
+          d.name = cmd.name + ' → ' + psName;
+          d.description = cmd.description;
+          d.syntax = cmd.syntax;
+          d.params = cmd.params;
+          d.example = cmd.example;
+          d.powershell = psName;
+          d.tool = cmd.tool;
+          d._catName = cat.name;
+          d._catColor = cat.color;
+          break;
+        }
+      }
+    }
+  }
+  
+  detailName.textContent = d.name;
+  detailDesc.textContent = d.description;
+  
+  // Category badge
+  const catBadge = document.getElementById('detailCatBadge');
+  if(d._catName) {
+    catBadge.textContent = d._catName;
+    catBadge.style.color = d._catColor || '#4fc3f7';
+    catBadge.style.borderColor = d._catColor || '#4fc3f7';
+    catBadge.style.display = 'inline-block';
+  } else {
+    catBadge.style.display = 'none';
+  }
+  
+  // Syntax
+  detailSyntax.textContent = d.syntax || '-';
+  
+  // Params with enhanced formatting
+  detailParams.innerHTML = (d.params||[]).map(p => {
+    const parts = p.split(' - ');
+    return '<li><strong>' + parts[0] + '</strong>' + (parts.length > 1 ? ' — ' + parts.slice(1).join(' — ') : '') + '</li>';
+  }).join('');
+  if((d.params||[]).length === 0) {
+    detailParams.innerHTML = '<li style="color:#666">无参数</li>';
+  }
+  
+  // Example
+  detailExample.textContent = d.example || '-';
+  
+  // PowerShell
+  detailPS.textContent = d.powershell ? (d.powershell + '  ← PowerShell 替代命令') : '无对应PowerShell命令';
+  
+  // Tool
+  detailTool.textContent = d.tool ? (d.tool + '  ← 图形化替代工具') : '无关联图形工具';
+  
+  // Related commands (same category)
+  const relatedDiv = document.getElementById('detailRelated');
+  const catId = node._catId;
+  if(catId && categoryMap[catId]) {
+    const siblings = categoryMap[catId].commands.filter(c => c.name !== d.name).slice(0, 8);
+    relatedDiv.innerHTML = siblings.map(c => {
+      const cid = 'cmd_' + c.name.replace(/[^a-zA-Z0-9]/g,'_');
+      return '<span class="tag" data-cid="' + cid + '">' + c.name + '</span>';
+    }).join('');
+    relatedDiv.querySelectorAll('.tag').forEach(tag => {
+      tag.addEventListener('click', () => focusNode(tag.dataset.cid));
+    });
+  } else {
+    relatedDiv.innerHTML = '<span style="color:#555">-</span>';
+  }
+  
+  // Tips
+  const tipsDiv = document.getElementById('detailTips');
+  const tips = [];
+  if(d.tool) tips.push('该命令有图形化替代工具: <strong>' + d.tool + '</strong>');
+  if(d.powershell) tips.push('PowerShell中建议使用 <strong>' + d.powershell + '</strong> 获得更好的管道支持');
+  if(d.params && d.params.length > 3) tips.push('该命令支持 <strong>' + d.params.length + '</strong> 个参数,建议输入 <strong>help ' + d.name + '</strong> 查看完整帮助');
+  if(d.name === 'ipconfig') tips.push('常见组合: 先 <strong>ipconfig /release</strong> 释放IP,再 <strong>ipconfig /renew</strong> 更新');
+  if(d.name === 'sfc') tips.push('需以管理员身份运行,建议先运行 <strong>sfc /scannow</strong> 再运行 <strong>chkdsk /F</strong>');
+  if(d.name === 'tasklist') tips.push('配合 <strong>taskkill /PID [ID] /F</strong> 可终止指定进程');
+  if(d.name === 'ping') tips.push('持续测试用 <strong>ping -t</strong>,按 Ctrl+C 停止;配合 <strong>tracert</strong> 追踪路由');
+  if(d.name === 'robocopy') tips.push('推荐使用 <strong>/MIR</strong> 镜像同步,<strong>/MT:8</strong> 多线程加速');
+  if(d.name === 'findstr') tips.push('配合管道使用: <strong>dir /s | findstr /i \"pattern\"</strong>');
+  if(d.name === 'netstat') tips.push('排查端口占用: <strong>netstat -ano | findstr :端口号</strong>');
+  if(tips.length === 0) tips.push('在终端中输入 <strong>help ' + (d.name||'') + '</strong> 获取更多帮助');
+  tipsDiv.innerHTML = tips.map(t => '• ' + t).join('<br>');
+  
+  detailPanel.classList.add('open');
+  detailPanel.scrollTop = 0;
+}
+
+document.getElementById('closeDetail').addEventListener('click', () => {
+  detailPanel.classList.remove('open');
+});
+
+// Double click to show detail
+function bindEvents() {
+  // Single click - show detail for commands
+  chart.on('click', function(params) {
+    if(params.data && (params.data._type === 'command' || params.data._type === 'powershell')) {
+      showDetail(params.data);
+    }
+  });
+  
+  // Double click - also show detail (backup)
+  chart.on('dblclick', function(params) {
+    if(params.data && (params.data._type === 'command' || params.data._type === 'powershell')) {
+      showDetail(params.data);
+    }
+  });
+  
+  // Click on category filter
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => setFilter(btn.dataset.cat));
+  });
+  
+  // Keyboard shortcut
+  document.addEventListener('keydown', function(e) {
+    if(e.key === '/' && !e.target.matches('input')) {
+      e.preventDefault();
+      searchInput.focus();
+    }
+    if(e.key === 'Escape') {
+      searchInput.blur();
+      searchResults.classList.remove('show');
+      detailPanel.classList.remove('open');
+    }
+  });
+}
+
+// ========== Console Emulator ==========
+const consoleOutput = document.getElementById('consoleOutput');
+const consoleInput = document.getElementById('consoleInput');
+let cmdHistory = [];
+let historyIndex = -1;
+
+function initConsole() {
+  consoleInput.addEventListener('keydown', function(e) {
+    if(e.key === 'Enter') {
+      const cmd = this.value.trim();
+      if(cmd) {
+        cmdHistory.unshift(cmd);
+        historyIndex = -1;
+        processCommand(cmd);
+      }
+      this.value = '';
+    }
+    if(e.key === 'ArrowUp') {
+      e.preventDefault();
+      if(historyIndex < cmdHistory.length - 1) { historyIndex++; this.value = cmdHistory[historyIndex]; }
+    }
+    if(e.key === 'ArrowDown') {
+      e.preventDefault();
+      if(historyIndex > 0) { historyIndex--; this.value = cmdHistory[historyIndex]; }
+      else { historyIndex = -1; this.value = ''; }
+    }
+  });
+  
+  document.getElementById('clearConsole').addEventListener('click', () => {
+    consoleOutput.innerHTML = '';
+  });
+}
+
+function addConsoleLine(text, className) {
+  const div = document.createElement('div');
+  div.className = className || 'result-line';
+  div.textContent = text;
+  consoleOutput.appendChild(div);
+  consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+function processCommand(input) {
+  addConsoleLine('C:\> ' + input, 'cmd-line');
+  
+  const parts = input.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+  const arg = parts.slice(1).join(' ');
+  
+  if(cmd === 'cls' || cmd === 'clear') {
+    consoleOutput.innerHTML = '';
+    return;
+  }
+  
+  if(cmd === 'help') {
+    if(arg) {
+      // Find command info
+      const found = findCommand(arg.toLowerCase());
+      if(found) {
+        addConsoleLine('', 'result-line');
+        addConsoleLine('═══════════════════════════════════════', 'info-line');
+        addConsoleLine('  命令: ' + found.name, 'info-line');
+        addConsoleLine('  描述: ' + found.description, 'result-line');
+        addConsoleLine('  语法: ' + found.syntax, 'result-line');
+        addConsoleLine('  示例: ' + found.example, 'result-line');
+        if(found.powershell) addConsoleLine('  PS替代: ' + found.powershell, 'ps-line');
+        if(found.tool) addConsoleLine('  图形工具: ' + found.tool, 'result-line');
+        addConsoleLine('═══════════════════════════════════════', 'info-line');
+        addConsoleLine('', 'result-line');
+        // Highlight on graph
+        const cmdId = 'cmd_' + found.name.replace(/[^a-zA-Z0-9]/g,'_');
+        focusNode(cmdId);
+      } else {
+        addConsoleLine('错误: 未找到命令 "' + arg + '"', 'error-line');
+      }
+    } else {
+      addConsoleLine('可用命令列表:', 'info-line');
+      commandsData.categories.forEach(cat => {
+        addConsoleLine('  [' + cat.name + ']', 'info-line');
+        cat.commands.forEach(c => addConsoleLine('    ' + c.name.padEnd(16) + c.description));
+      });
+      addConsoleLine('', 'result-line');
+      addConsoleLine('用法: help <命令名>  查看命令详情', 'info-line');
+    }
+    return;
+  }
+  
+  // Direct command lookup
+  const found = findCommand(cmd);
+  if(found) {
+    addConsoleLine('', 'result-line');
+    addConsoleLine('═══════════════════════════════════════', 'info-line');
+    addConsoleLine('  命令: ' + found.name, 'info-line');
+    addConsoleLine('  描述: ' + found.description, 'result-line');
+    addConsoleLine('  语法: ' + found.syntax, 'result-line');
+    addConsoleLine('  示例: ' + found.example, 'result-line');
+    if(found.powershell) addConsoleLine('  PS替代: ' + found.powershell, 'ps-line');
+    if(found.tool) addConsoleLine('  图形工具: ' + found.tool, 'result-line');
+    addConsoleLine('═══════════════════════════════════════', 'info-line');
+    const cmdId = 'cmd_' + found.name.replace(/[^a-zA-Z0-9]/g,'_');
+    focusNode(cmdId);
+    return;
+  }
+  
+  // Special combos
+  if(cmd === 'ipconfig' && arg.includes('/release')) {
+    addConsoleLine('正在释放IP地址...', 'result-line');
+    addConsoleLine('已释放适配器的IP地址。', 'result-line');
+    addConsoleLine('提示: 接下来通常使用 ipconfig /renew 更新IP', 'info-line');
+    focusNode('cmd_ipconfig');
+    return;
+  }
+  if(cmd === 'ipconfig' && arg.includes('/renew')) {
+    addConsoleLine('正在更新IP地址...', 'result-line');
+    addConsoleLine('已成功更新适配器的IP地址。', 'result-line');
+    focusNode('cmd_ipconfig');
+    return;
+  }
+  if(cmd === 'ipconfig' && arg.includes('/flushdns')) {
+    addConsoleLine('已成功刷新DNS解析缓存。', 'result-line');
+    focusNode('cmd_ipconfig');
+    return;
+  }
+  if(cmd === 'ipconfig') {
+    addConsoleLine('Windows IP 配置', 'result-line');
+    addConsoleLine('', 'result-line');
+    addConsoleLine('以太网适配器 Ethernet:', 'info-line');
+    addConsoleLine('   IPv4 地址 . . . . . . : 192.168.1.100', 'result-line');
+    addConsoleLine('   子网掩码  . . . . . . : 255.255.255.0', 'result-line');
+    addConsoleLine('   默认网关  . . . . . . : 192.168.1.1', 'result-line');
+    focusNode('cmd_ipconfig');
+    return;
+  }
+  if(cmd === 'dir') {
+    addConsoleLine(' 驱动器 C 中的卷没有标签。', 'result-line');
+    addConsoleLine(' 卷的序列号是 XXXX-XXXX', 'result-line');
+    addConsoleLine('', 'result-line');
+    addConsoleLine(' C:\ 的目录', 'result-line');
+    addConsoleLine('', 'result-line');
+    addConsoleLine('2024/01/15  10:30    <DIR>          Users', 'result-line');
+    addConsoleLine('2024/01/15  10:30    <DIR>          Windows', 'result-line');
+    addConsoleLine('2024/01/15  10:30    <DIR>          Program Files', 'result-line');
+    addConsoleLine('               0 个文件              0 字节', 'result-line');
+    addConsoleLine('               3 个目录  100,000,000,000 可用字节', 'result-line');
+    focusNode('cmd_dir');
+    return;
+  }
+  
+  addConsoleLine("'" + cmd + "' 不是内部或外部命令,也不是可运行的程序。", 'error-line');
+  addConsoleLine('提示: 输入 help 查看可用命令列表', 'info-line');
+}
+
+function findCommand(name) {
+  for(const cat of commandsData.categories) {
+    for(const cmd of cat.commands) {
+      if(cmd.name.toLowerCase() === name.toLowerCase()) return cmd;
+    }
+  }
+  return null;
+}
+
+// Initialize
+loadData();
+</script>
+<!-- Animated background -->
+<canvas class="bg-canvas" id="bgCanvas"></canvas>
+<script>
+(function(){
+  const c = document.getElementById('bgCanvas');
+  const ctx = c.getContext('2d');
+  let w, h, particles = [];
+  function resize(){ w=c.width=window.innerWidth; h=c.height=window.innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+  for(let i=0;i<60;i++){
+    particles.push({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,r:Math.random()*1.5+0.5,a:Math.random()*0.3+0.05});
+  }
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    // Draw grid
+    ctx.strokeStyle='rgba(42,42,74,0.15)';
+    ctx.lineWidth=0.5;
+    const gs=80;
+    for(let x=0;x<w;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let y=0;y<h;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    // Draw particles
+    particles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=w; if(p.x>w)p.x=0;
+      if(p.y<0)p.y=h; if(p.y>h)p.y=0;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,255,65,'+p.a+')';ctx.fill();
+    });
+    // Draw connections
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const dx=particles[i].x-particles[j].x;
+        const dy=particles[i].y-particles[j].y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<120){
+          ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);
+          ctx.strokeStyle='rgba(0,255,65,'+(0.08*(1-dist/120))+')';ctx.lineWidth=0.5;ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>
